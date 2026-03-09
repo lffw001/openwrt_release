@@ -1,4 +1,4 @@
-name: Release WRT
+name: Release Test
 run-name: Release - ${{ inputs.model }}
 
 on:
