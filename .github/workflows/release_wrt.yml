@@ -151,8 +151,8 @@ jobs:
           📦 Kernel: ${{ env.KVER }}
 
           🔧 Default Config
-          WIFI Password: 12345678
-          LAN IP: 10.0.0.1
+          - WIFI Password: 12345678
+          - LAN IP: 10.0.0.1
 
           🧩 Installed Plugins
           $(grep -oP "luci-app(-[a-zA-Z0-9]{1,}){1,}" ./firmware/*.manifest | awk -F":" '{print "- " $NF}')
