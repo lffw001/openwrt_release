@@ -309,6 +309,33 @@ update_diskman() {
     fi
 }
 
+update_dockerman() {
+    local path="$BUILD_DIR/feeds/luci/applications/luci-app-dockerman"
+    local repo_url="https://github.com/lisaac/luci-app-dockerman.git"
+    if [ -d "$path" ]; then
+        echo "正在更新 dockerman..."
+        cd "$BUILD_DIR/feeds/luci/applications" || return
+        \rm -rf "luci-app-dockerman"
+
+        if ! git clone --filter=blob:none --no-checkout "$repo_url" dockerman; then
+            echo "错误：从 $repo_url 克隆 dockerman 仓库失败" >&2
+            exit 1
+        fi
+        cd dockerman || return
+
+        git sparse-checkout init --cone
+        git sparse-checkout set applications/luci-app-dockerman || return
+
+        git checkout --quiet
+
+        mv applications/luci-app-dockerman ../luci-app-dockerman || return
+        cd .. || return
+        \rm -rf dockerman
+        cd "$BUILD_DIR"
+
+        echo "dockerman 更新完成"
+    fi
+}
 add_quickfile() {
     local repo_url="https://github.com/sbwml/luci-app-quickfile.git"
     local target_dir="$BUILD_DIR/package/emortal/quickfile"

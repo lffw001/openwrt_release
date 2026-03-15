@@ -76,6 +76,7 @@ main() {
     fix_rust_compile_error
     update_smartdns
     update_diskman
+    update_dockerman
     set_nginx_default_config
     update_uwsgi_limit_as
     update_argon
