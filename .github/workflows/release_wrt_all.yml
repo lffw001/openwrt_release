@@ -163,7 +163,6 @@ jobs:
           cat > release_body.txt <<EOF
           🚀 ImmortalWrt Cloud Build
 
-          📦 Model: ${{ matrix.model }}
           📦 Kernel: ${{ env.KVER }}
 
           🔧 Default Config
