@@ -2,7 +2,7 @@
 
 DOCKER_STACK_MODULE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 DOCKER_STACK_REPO_ROOT=$(cd "$DOCKER_STACK_MODULE_DIR/../.." && pwd)
-DOCKER_STACK_CANONICAL_DOCKERD_INIT="$DOCKER_STACK_REPO_ROOT/imm-nss/package/feeds/packages/dockerd/files/dockerd.init"
+DOCKER_STACK_CANONICAL_DOCKERD_INIT="$DOCKER_STACK_REPO_ROOT/wrt_core/templates/dockerd.init"
 
 DOCKER_STACK_COMPONENTS=(
     "runc"
@@ -266,6 +266,11 @@ _docker_stack_ensure_nftables_init_support() {
 
     [ -f "$canonical_init" ] || {
         echo "错误：缺少 nftables 兼容 dockerd.init 模板: $canonical_init" >&2
+        return 1
+    }
+
+    _docker_stack_init_supports_nftables_backend "$canonical_init" || {
+        echo "错误：nftables 兼容 dockerd.init 模板内容不完整: $canonical_init" >&2
         return 1
     }
 

@@ -214,6 +214,7 @@ replace_banner() {
         echo "未提供自定义 banner 文件，保持 OpenWrt 默认配置"
     fi
 }
+
 REPO_URL=$(read_ini_by_key "REPO_URL")
 REPO_BRANCH=$(read_ini_by_key "REPO_BRANCH")
 REPO_BRANCH=${REPO_BRANCH:-main}
