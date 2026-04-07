@@ -172,11 +172,9 @@ jobs:
           📶 WIFI Password: 12345678
 
           🧩 Installed Plugins:
-
           \`\`\`
           $PLUGINS
           \`\`\`
-
           EOF
 
       # 发布 Release
