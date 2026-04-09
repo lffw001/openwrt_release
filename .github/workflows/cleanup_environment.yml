@@ -1,4 +1,4 @@
-name: Cleanup Build Environment
+name: Cleanup Env
 
 on:
   workflow_dispatch:
