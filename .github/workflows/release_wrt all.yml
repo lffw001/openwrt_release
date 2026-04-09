@@ -2,6 +2,16 @@ name: Release Wrt - All Models
 
 on:
   workflow_dispatch:
+  # 每周六00:30触发
+  schedule:
+    - cron: '30 0 * * 6'
+  # 监听主分支的推送事件触发编译，按推送文件类型过滤，避免频繁触发
+  push:
+    paths:
+      - 'wrt_core/**'
+      - 'build.sh'
+    branches:
+      - master
 
 permissions: write-all
 
