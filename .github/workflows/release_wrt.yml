@@ -33,7 +33,10 @@ jobs:
     steps:
       # 系统环境
       - name: Build Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
+          sudo -E apt-get -y update
           sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
           sudo -E apt -yqq install dos2unix
           sudo -E apt -yqq install libfuse-dev
