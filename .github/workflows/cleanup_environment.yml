@@ -16,8 +16,15 @@ on:
       model_filter:
         required: false
         description: Model Filter (leave empty for all models)
-        type: string
-        default: ''
+        type: choice
+        default: jdcloud_ipq60xx_immwrt
+        options:
+          - jdcloud_ax6000_immwrt
+          - jdcloud_ipq60xx_immwrt
+          - jdcloud_ipq60xx_libwrt
+          - link_nn6000v2_immwrt
+          - x64_immwrt
+        
 
 permissions:
   actions: write
