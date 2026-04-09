@@ -179,43 +179,32 @@ jobs:
           files: ./firmware/*.*
           body_path: ./release_body_${{ matrix.model }}.txt
 
-      # 清理旧固件目录
-      - name: Clean up firmware directory after release
-        run: |
-          rm -rf ./firmware
-
-  # 清理所有旧发布
-  cleanup:
-    needs: build
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Cleanup Old Releases
+      # 在发布后清理历史发布
+      - name: Cleanup Old Releases for Current Model
+        if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           KEEP_RELEASE=2
-          MODELS=("jdcloud_ax6000_immwrt" "jdcloud_ipq60xx_immwrt" "jdcloud_ipq60xx_libwrt" "link_nn6000v2_immwrt" "x64_immwrt")
-          
-          for MODEL in "${MODELS[@]}"; do
-            echo "Keeping latest $KEEP_RELEASE releases for model: $MODEL"
-            
-            gh release list \
-              --limit 200 \
-              --json tagName,publishedAt \
-              | jq -r ".[] 
-                  | select(.tagName | contains(\"$MODEL\")) 
-                  | \"\(.publishedAt) \(.tagName)\"" \
-              | sort -r \
-              | awk "NR>$KEEP_RELEASE {print \$2}" \
-              | while read tag; do
-                  echo "Deleting release $tag"
-                  gh release delete "$tag" --yes --cleanup-tag
-                done
-          done
+          MODEL="${{ matrix.model }}"
+          echo "Keeping latest $KEEP_RELEASE releases for model: $MODEL"
 
-      # 清理工作流运行记录
+          gh release list \
+            --limit 200 \
+            --json tagName,publishedAt \
+            | jq -r ".[] 
+                | select(.tagName | contains(\"$MODEL\")) 
+                | \"\(.publishedAt) \(.tagName)\"" \
+            | sort -r \
+            | awk "NR>$KEEP_RELEASE {print \$2}" \
+            | while read tag; do
+                echo "Deleting release $tag"
+                gh release delete "$tag" --yes --cleanup-tag
+              done
+
+      # 清理工作流运行记录（仅保留当前模型的运行记录）
       - name: Cleanup Old Workflow Runs
+        if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
