@@ -165,10 +165,11 @@ jobs:
             | awk '{printf "%-28s %-28s %-28s\n",$1,$2,$3}')
 
           cat > release_body.txt <<EOF
-          🚀 ImmortalWrt Cloud Build
-          📦 Kernel: ${{ env.KVER }}
-          🔧 LAN IP: 10.0.0.1
-          📶 WIFI Password: 12345678
+          **This is 🚀 LibWrt Cloud Build OpenWrt Firmware for ${{ inputs.model }}**
+            - 🚀 ImmortalWrt Cloud Build
+            - 📦 Kernel: ${{ env.KVER }}
+            - 🔧 LAN IP: 10.0.0.1
+            - 📶 WIFI Password: 12345678
 
           🧩 Installed Plugins:
           \`\`\`
