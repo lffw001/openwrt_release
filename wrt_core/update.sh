@@ -81,6 +81,9 @@ main() {
     set_nginx_default_config
     update_uwsgi_limit_as
     update_argon
+    update_argon_config
+    update_aurora
+    update_aurora_config
     update_nginx_ubus_module
     check_default_settings
     install_opkg_distfeeds
