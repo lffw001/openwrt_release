@@ -390,7 +390,7 @@ add_quickfile() {
 }
 
 update_argon() {
-    local repo_url="https://github.com/ZqinKing/luci-theme-argon.git"
+    local repo_url="https://github.com/jerrykuku/luci-theme-argon.git"
     local dst_theme_path="$BUILD_DIR/feeds/luci/themes/luci-theme-argon"
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -408,6 +408,69 @@ update_argon() {
     mv "$tmp_dir" "$dst_theme_path"
 
     echo "luci-theme-argon 更新完成"
+}
+
+update_argon_config() {
+    local repo_url="https://github.com/jerrykuku/luci-app-argon-config.git"
+    local dst_app_path="$BUILD_DIR/feeds/luci/applications/luci-app-argon-config"
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    echo "正在更新 argon 配置应用..."
+
+    if ! git clone --depth 1 "$repo_url" "$tmp_dir"; then
+        echo "错误：从 $repo_url 克隆 luci-app-argon-config 仓库失败" >&2
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
+
+    rm -rf "$dst_app_path"
+    rm -rf "$tmp_dir/.git"
+    mv "$tmp_dir" "$dst_app_path"
+
+    echo "luci-app-argon-config 更新完成"
+}
+
+update_aurora() {
+    local repo_url="https://github.com/eamonxg/luci-theme-aurora.git"
+    local dst_theme_path="$BUILD_DIR/feeds/luci/themes/luci-theme-aurora"
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    echo "正在更新 aurora 主题..."
+
+    if ! git clone --depth 1 "$repo_url" "$tmp_dir"; then
+        echo "错误：从 $repo_url 克隆 aurora 主题仓库失败" >&2
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
+
+    rm -rf "$dst_theme_path"
+    rm -rf "$tmp_dir/.git"
+    mv "$tmp_dir" "$dst_theme_path"
+
+    echo "luci-theme-aurora 更新完成"
+}
+
+update_aurora_config() {
+    local repo_url="https://github.com/eamonxg/luci-app-aurora-config.git"
+    local dst_app_path="$BUILD_DIR/feeds/luci/applications/luci-app-aurora-config"
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    echo "正在更新 aurora 配置应用..."
+
+    if ! git clone --depth 1 "$repo_url" "$tmp_dir"; then
+        echo "错误：从 $repo_url 克隆 luci-app-aurora-config 仓库失败" >&2
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
+
+    rm -rf "$dst_app_path"
+    rm -rf "$tmp_dir/.git"
+    mv "$tmp_dir" "$dst_app_path"
+
+    echo "luci-app-aurora-config 更新完成"
 }
 
 remove_attendedsysupgrade() {

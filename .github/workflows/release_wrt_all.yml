@@ -1,20 +1,17 @@
-name: Release Wrt
-run-name: Release - ${{ inputs.model }}
+name: Release Wrt All
 
 on:
   workflow_dispatch:
-    inputs:
-      model:
-        required: true
-        description: Device Model
-        type: choice
-        default: jdcloud_ipq60xx_immwrt
-        options:
-          - jdcloud_ax6000_immwrt
-          - jdcloud_ipq60xx_immwrt
-          - jdcloud_ipq60xx_libwrt
-          - link_nn6000v2_immwrt
-          - x64_immwrt
+  # 每周六00:30触发
+  schedule:
+    - cron: '30 0 * * 6'
+  # 监听主分支的推送事件触发编译，按推送文件类型过滤，避免频繁触发
+  push:
+    paths:
+      - 'wrt_core/**'
+      - 'build.sh'
+    branches:
+      - master
 
 permissions: write-all
 
@@ -22,17 +19,27 @@ env:
   TZ: Asia/Shanghai
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-
 jobs:
   build:
     strategy:
       matrix:
         os: [ubuntu-24.04]
+        model: [
+          'jdcloud_ax6000_immwrt',
+          'jdcloud_ipq60xx_immwrt', 
+          'jdcloud_ipq60xx_libwrt',
+          'link_nn6000v2_immwrt',
+          'x64_immwrt'
+        ]
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Build System Setup
+      # 系统环境
+      - name: Build Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
+          sudo -E apt-get -y update
           sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
           sudo -E apt -yqq install dos2unix
           sudo -E apt -yqq install libfuse-dev
@@ -55,13 +62,13 @@ jobs:
           sudo -E timedatectl set-timezone "Asia/Shanghai"
           export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
-          export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./wrt_core/compilecfg/${{ inputs.model }}.ini")
+          export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./wrt_core/compilecfg/${{ matrix.model }}.ini")
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
 
       # 预克隆源码
       - name: Pre Clone
         run: |
-          ./wrt_core/pre_clone_action.sh ${{ inputs.model }}
+          ./wrt_core/pre_clone_action.sh ${{ matrix.model }}
 
       - name: Cache Dependencies
         uses: actions/cache@v5.0.2
@@ -69,9 +76,9 @@ jobs:
           path: |
             ./action_build/.ccache
             ./action_build/staging_dir
-          key: ${{ matrix.os }}-${{ inputs.model }}-${{ hashFiles('**/repo_flag') }}
+          key: ${{ matrix.os }}-${{ matrix.model }}-${{ hashFiles('**/repo_flag') }}
           restore-keys: |
-            ${{ matrix.os }}-${{ inputs.model }}-${{ hashFiles('**/repo_flag') }}-
+            ${{ matrix.os }}-${{ matrix.model }}-${{ hashFiles('**/repo_flag') }}-
 
       - name: Refresh the cache
         run: |
@@ -83,7 +90,7 @@ jobs:
 
       - name: Machine Information (Pre-build)
         run: |
-          echo "=============== Pre-build Snapshot ==============="
+          echo "=============== Pre-build Snapshot for ${{ matrix.model }} ==============="
           echo "Time: $(date '+%F %T %Z')"
           echo "Runner: ${RUNNER_NAME} (${RUNNER_OS}/${RUNNER_ARCH})"
           echo "Kernel: $(uname -r)"
@@ -110,7 +117,7 @@ jobs:
 
       - name: Build Firmware
         run: |
-          ./build.sh ${{ inputs.model }}
+          ./build.sh ${{ matrix.model }}
 
       # 获取内核
       - name: Kernel Version
@@ -121,7 +128,7 @@ jobs:
       - name: Delete Old Cache
         run: |
           # 获取缓存列表并删除
-          gh cache list --key ${{ matrix.os }}-${{ inputs.model }}-${{ hashFiles('**/repo_flag') }}- --json key --jq '.[] | .key' | while read -r key; do
+          gh cache list --key ${{ matrix.os }}-${{ matrix.model }}-${{ hashFiles('**/repo_flag') }}- --json key --jq '.[] | .key' | while read -r key; do
             gh cache delete "$key"
           done
           # 输出缓存状态
@@ -131,7 +138,7 @@ jobs:
       
       - name: Machine Information (Post-build)
         run: |
-          echo "=============== Post-build Snapshot ==============="
+          echo "=============== Post-build Snapshot for ${{ matrix.model }} ==============="
           echo "Time: $(date '+%F %T %Z')"
           echo "Runner: ${RUNNER_NAME} (${RUNNER_OS}/${RUNNER_ARCH})"
           echo "Kernel: $(uname -r)"
@@ -164,8 +171,8 @@ jobs:
             | paste - - - \
             | awk '{printf "%-28s %-28s %-28s\n",$1,$2,$3}')
 
-          cat > release_body.txt <<EOF
-          **This is 🚀 Cloud Build OpenWrt Firmware for ${{ inputs.model }}**
+          cat > release_body_${{ matrix.model }}.txt <<EOF
+          **This is 🚀 Cloud Build OpenWrt Firmware for ${{ matrix.model }}**
             - 📦 Kernel: ${{ env.KVER }}
             - 🔧 LAN IP: 10.0.0.1
             - 📶 WIFI Password: 12345678
@@ -181,18 +188,18 @@ jobs:
         if: success()
         uses: softprops/action-gh-release@v2.5.0
         with:
-          tag_name: ${{ inputs.model }}_${{ env.BUILD_DATE }}
-          files: ${{ inputs.model == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
-          body_path: ./release_body.txt
+          tag_name: ${{ matrix.model }}_${{ env.BUILD_DATE }}
+          files: ./firmware/*.*
+          body_path: ./release_body_${{ matrix.model }}.txt
 
-      # Cleanup Releases (Keep Last 2)
-      - name: Cleanup Old Releases
+      # 在发布后清理历史发布
+      - name: Cleanup Old Releases for Current Model
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           KEEP_RELEASE=2
-          MODEL="${{ inputs.model }}"
+          MODEL="${{ matrix.model }}"
           echo "Keeping latest $KEEP_RELEASE releases for model: $MODEL"
 
           gh release list \
@@ -208,7 +215,7 @@ jobs:
                 gh release delete "$tag" --yes --cleanup-tag
               done
 
-      # # Cleanup Workflow Runs (Keep Last 10)
+      # 清理工作流运行记录（仅保留当前模型的运行记录）
       - name: Cleanup Old Workflow Runs
         if: success()
         env:
