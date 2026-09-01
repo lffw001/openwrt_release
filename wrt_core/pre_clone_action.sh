@@ -12,6 +12,9 @@ fi
 
 BASE_PATH=$(cd "$WRT_CORE_PATH" && pwd)
 
+source "$BASE_PATH/modules/network.sh"
+source "$BASE_PATH/modules/repo.sh"
+
 Dev=$1
 
 INI_FILE="$BASE_PATH/compilecfg/$Dev.ini"
@@ -29,6 +32,8 @@ read_ini_by_key() {
 REPO_URL=$(read_ini_by_key "REPO_URL")
 REPO_BRANCH=$(read_ini_by_key "REPO_BRANCH")
 REPO_BRANCH=${REPO_BRANCH:-main}
+COMMIT_HASH=$(read_ini_by_key "COMMIT_HASH")
+COMMIT_HASH=${COMMIT_HASH:-none}
 # GitHub Actions usually runs in root of repo, so build dir should be relative to repo root
 # We need to construct absolute path or ensure context is correct.
 # Assuming this script is run from repo root or wrt_core.
@@ -37,9 +42,19 @@ REPO_BRANCH=${REPO_BRANCH:-main}
 BUILD_DIR="$BASE_PATH/../action_build"
 
 echo $REPO_URL $REPO_BRANCH
-# Write flag one level up from wrt_core (repo root usually)
-echo "$REPO_URL/$REPO_BRANCH" >"$BASE_PATH/../repo_flag"
-git clone --depth 1 -b $REPO_BRANCH $REPO_URL $BUILD_DIR
+clone_repo
+if ! checkout_repo_ref; then
+    exit 1
+fi
+
+RESOLVED_SHA=$(git -C "$BUILD_DIR" rev-parse HEAD)
+REPO_FLAG="$BASE_PATH/../repo_flag"
+echo "$REPO_URL/$REPO_BRANCH@$RESOLVED_SHA" >"$REPO_FLAG"
+if [[ -n ${GITHUB_ENV:-} ]]; then
+    REPO_HASH=$(sha256sum "$REPO_FLAG" | awk '{print $1}')
+    echo "REPO_HASH=$REPO_HASH" >>"$GITHUB_ENV"
+    echo "PRECLONE_COMMIT_HASH=$RESOLVED_SHA" >>"$GITHUB_ENV"
+fi
 
 # GitHub Action 移除国内下载源
 PROJECT_MIRRORS_FILE="$BUILD_DIR/scripts/projectsmirrors.json"

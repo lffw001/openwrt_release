@@ -1,0 +1,49 @@
+name: Release Wrt - All Models
+
+on:
+  workflow_dispatch:
+    inputs:
+      add_fragments:
+        description: Add config fragments, comma separated
+        required: false
+        default: ""
+      remove_fragments:
+        description: Remove default config fragments, comma separated
+        required: false
+        default: ""
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        model:
+          - aliyun_ap8220_immwrt
+          - aliyun_ap8220_libwrt
+          - cmcc_rax3000m_immwrt
+          - gemtek_w1701k_immwrt
+          - jdcloud_ax6000_immwrt
+          - jdcloud_ipq60xx_immwrt
+          - jdcloud_ipq60xx_libwrt
+          - link_nn6000v2_immwrt
+          - linksys_mx4x00_immwrt
+          - n1_immwrt
+          - qihoo_360v6_immwrt
+          - redmi_ax5_immwrt
+          - redmi_ax6_immwrt
+          - redmi_ax6_libwrt
+          - redmi_ax6000_immwrt21
+          - x64_immwrt
+          - zn_m2_immwrt
+          - zn_m2_libwrt
+    uses: ./.github/workflows/release_wrt.yml
+    with:
+      model: ${{ matrix.model }}
+      add_fragments: ${{ inputs.add_fragments }}
+      remove_fragments: ${{ inputs.remove_fragments }}
+    secrets: inherit

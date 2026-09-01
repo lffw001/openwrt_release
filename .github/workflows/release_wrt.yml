@@ -1,4 +1,4 @@
-name: Release Wrt
+name: Release WRT
 run-name: Release - ${{ inputs.model }}
 
 on:
@@ -10,18 +10,52 @@ on:
         type: choice
         default: jdcloud_ipq60xx_immwrt
         options:
+          - aliyun_ap8220_immwrt
+          - aliyun_ap8220_libwrt
+          - cmcc_rax3000m_immwrt
+          - gemtek_w1701k_immwrt
           - jdcloud_ax6000_immwrt
           - jdcloud_ipq60xx_immwrt
           - jdcloud_ipq60xx_libwrt
           - link_nn6000v2_immwrt
+          - linksys_mx4x00_immwrt
+          - n1_immwrt
+          - qihoo_360v6_immwrt
+          - redmi_ax5_immwrt
+          - redmi_ax6_immwrt
+          - redmi_ax6_libwrt
+          - redmi_ax6000_immwrt21
+          - zn_m2_immwrt
+          - zn_m2_libwrt
           - x64_immwrt
+      add_fragments:
+        required: false
+        description: Add config fragments, comma separated
+        default: ""
+      remove_fragments:
+        required: false
+        description: Remove default config fragments, comma separated
+        default: ""
+  workflow_call:
+    inputs:
+      model:
+        required: true
+        type: string
+      add_fragments:
+        required: false
+        type: string
+        default: ""
+      remove_fragments:
+        required: false
+        type: string
+        default: ""
 
-permissions: write-all
+permissions:
+  actions: write
+  contents: write
 
 env:
-  TZ: Asia/Shanghai
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 
 jobs:
   build:
@@ -31,8 +65,20 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      # 系统环境
-      - name: Build Environment
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /usr/share/swift || true
+          sudo rm -rf "${AGENT_TOOLSDIRECTORY:-/opt/hostedtoolcache}" || true
+          docker system prune -af || true
+          sudo -E apt-get autoremove --purge -y || true
+          sudo -E apt-get clean || true
+          df -hT
+
+      - name: Build System Setup
         run: |
           sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
           sudo -E apt -yqq install dos2unix
@@ -42,37 +88,36 @@ jobs:
           sudo -E apt -yqq clean
           sudo -E systemctl daemon-reload
 
-      # 拉代码
       - name: Checkout
-        uses: actions/checkout@v6.0.2
-
-      # 脚本权限
-      - name: Grant execute permission
-        run: |
-          find . -name "*.sh" -exec chmod +x {} \;
+        uses: actions/checkout@v7.0.0
 
       - name: Set Build Date and Timezone
+        env:
+          RAW_ADD_CONFIG_FRAGMENTS: ${{ inputs.add_fragments }}
+          RAW_REMOVE_CONFIG_FRAGMENTS: ${{ inputs.remove_fragments }}
         run: |
           sudo -E timedatectl set-timezone "Asia/Shanghai"
           export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
+          sanitize_cache_key_part() { printf '%s' "$1" | tr -c 'A-Za-z0-9_.-' '_'; }
+          echo "ADD_CONFIG_FRAGMENTS_KEY=$(sanitize_cache_key_part "$RAW_ADD_CONFIG_FRAGMENTS")" >> $GITHUB_ENV
+          echo "REMOVE_CONFIG_FRAGMENTS_KEY=$(sanitize_cache_key_part "$RAW_REMOVE_CONFIG_FRAGMENTS")" >> $GITHUB_ENV
           export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./wrt_core/compilecfg/${{ inputs.model }}.ini")
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
 
-      # 预克隆源码
       - name: Pre Clone
-        run: |
-          ./wrt_core/pre_clone_action.sh ${{ inputs.model }}
+        run: ./wrt_core/pre_clone_action.sh ${{ inputs.model }}
 
       - name: Cache Dependencies
-        uses: actions/cache@v5.0.2
+        uses: actions/cache@v6.1.0
         with:
           path: |
             ./action_build/.ccache
             ./action_build/staging_dir
-          key: ${{ matrix.os }}-${{ hashFiles('**/repo_flag') }}-${{ env.BUILD_DATE }}
+          key: ${{ matrix.os }}-${{ inputs.model }}-${{ env.REPO_HASH }}-${{ env.ADD_CONFIG_FRAGMENTS_KEY }}-${{ env.REMOVE_CONFIG_FRAGMENTS_KEY }}-${{ env.BUILD_DATE }}
           restore-keys: |
-            ${{ matrix.os }}-${{ hashFiles('**/repo_flag') }}-
+            ${{ matrix.os }}-${{ inputs.model }}-${{ env.REPO_HASH }}-${{ env.ADD_CONFIG_FRAGMENTS_KEY }}-${{ env.REMOVE_CONFIG_FRAGMENTS_KEY }}-
+            ${{ matrix.os }}-${{ inputs.model }}-${{ env.REPO_HASH }}-
 
       - name: Refresh the cache
         run: |
@@ -110,26 +155,27 @@ jobs:
           echo "=================================================="
 
       - name: Build Firmware
-        run: |
-          ./build.sh ${{ inputs.model }}
+        env:
+          ADD_CONFIG_FRAGMENTS: ${{ inputs.add_fragments }}
+          REMOVE_CONFIG_FRAGMENTS: ${{ inputs.remove_fragments }}
+        run: ./build.sh ${{ inputs.model }}
 
-      # 获取内核
-      - name: Kernel Version
-        if: success()
+      - name: Get Kernel Verion
         run: |
+          # 获取内核版本
           echo "KVER=$(grep -oP "^kernel.*" ./firmware/*.manifest | grep -oP "[4-6]\.[0-9]{1,3}\.[0-9]{1,3}")" >> $GITHUB_ENV
 
       - name: Delete Old Cache
         run: |
           # 获取缓存列表并删除
-          gh cache list --key ${{ matrix.os }}-${{ hashFiles('**/repo_flag') }}- --json key --jq '.[] | .key' | while read -r key; do
+          gh cache list --key ${{ matrix.os }}-${{ inputs.model }}-${{ env.REPO_HASH }}- --json key --jq '.[] | .key' | while read -r key; do
             gh cache delete "$key"
           done
           # 输出缓存状态
           echo "========cache status========"
           echo "ccache: $(du -sh ./action_build/.ccache | cut -f 1)"
           echo "staging: $(du -sh ./action_build/staging_dir | cut -f 1)"
-      
+
       - name: Machine Information (Post-build)
         run: |
           echo "=============== Post-build Snapshot ==============="
@@ -156,7 +202,46 @@ jobs:
           echo "Firmware file count: $(ls -1 ./firmware 2>/dev/null | wc -l)"
           echo "===================================================="
 
-      # Release说明
+      - name: Package Kmods
+        run: |
+          if [ ! -d "./action_build/bin" ]; then
+            echo "kmod source directory not found: ./action_build/bin" >&2
+            exit 1
+          fi
+
+          KMOD_LIST=$(mktemp)
+          trap 'rm -f "$KMOD_LIST"' EXIT
+
+          (
+            cd ./action_build/bin
+            find . -type f \( -name "kmod*.ipk" -o -name "kmod*.apk" \) -print | sort > "$KMOD_LIST"
+          )
+
+          if [ ! -s "$KMOD_LIST" ]; then
+            echo "No kmod packages found under ./action_build/bin" >&2
+            exit 1
+          fi
+
+          kmod_count=$(wc -l < "$KMOD_LIST" | tr -d '[:space:]')
+          archive_name="kmods_${{ inputs.model }}_${KVER:-unknown-kernel}_${BUILD_DATE}.tar.gz"
+          tar -C ./action_build/bin -czf "$archive_name" -T "$KMOD_LIST"
+
+          echo "KMOD_ARCHIVE=$archive_name" >> "$GITHUB_ENV"
+          echo "Packaged $kmod_count kmod packages into $archive_name"
+
+      - name: Select Packit Rootfs
+        if: ${{ inputs.model == 'n1_immwrt' }}
+        run: bash ./wrt_core/ci/select_packit_rootfs.sh
+
+      - name: Package OpenWrt Firmware
+        if: ${{ inputs.model == 'n1_immwrt' }}
+        uses: unifreq/openwrt_packit@8007d3efd49bb42aa20c5755a50af21dc7a438e1
+        env:
+          OPENWRT_ARMVIRT: ${{ env.OPENWRT_ARMVIRT }}
+          PACKAGE_SOC: s905d
+          KERNEL_VERSION_NAME: 6.6.y
+          WHOAMI: ZqinKing
+
       - name: Prepare Release Body
         if: success()
         run: |
@@ -166,69 +251,50 @@ jobs:
             | awk '{printf "%-28s %-28s %-28s\n",$1,$2,$3}')
 
           cat > release_body.txt <<EOF
-          🚀 ImmortalWrt Cloud Build
-          📦 Kernel: ${{ env.KVER }}
-          🔧 LAN IP: 10.0.0.1
-          📶 WIFI Password: 12345678
+          **This is 🚀 Cloud Build OpenWrt Firmware for ${{ inputs.model }}**
+            - 📦 Kernel: ${{ env.KVER }}
+            - 🔧 LAN IP: 10.0.0.1
+            - 📶 WIFI Password: 12345678
 
           🧩 Installed Plugins:
-
           \`\`\`
           $PLUGINS
           \`\`\`
-
           EOF
 
-      # 发布 Release
       - name: Release Firmware
-        if: success()
-        uses: softprops/action-gh-release@v2.5.0
+        uses: softprops/action-gh-release@v3.0.1
         with:
           tag_name: ${{ inputs.model }}_${{ env.BUILD_DATE }}
-          files: ${{ inputs.model == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
+          files: |
+            ${{ inputs.model == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
+            ./kmods_*.tar.gz
+          fail_on_unmatched_files: true
           body_path: ./release_body.txt
 
-      # Cleanup Releases (Keep Last 2)
       - name: Cleanup Old Releases
-        if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           KEEP_RELEASE=2
           MODEL="${{ inputs.model }}"
-          echo "Keeping latest $KEEP_RELEASE releases for model: $MODEL"
-
-          gh release list \
-            --limit 200 \
-            --json tagName,publishedAt \
-            | jq -r ".[] 
-                | select(.tagName | contains(\"$MODEL\")) 
-                | \"\(.publishedAt) \(.tagName)\"" \
-            | sort -r \
+          gh release list --limit 200 --json tagName,publishedAt \
+            | jq -r ".[] | select(.tagName | startswith(\"${MODEL}_\")) | \"\(.publishedAt) \(.tagName)\"" \
+            | sort -r -k1,1 \
             | awk "NR>$KEEP_RELEASE {print \$2}" \
-            | while read tag; do
-                echo "Deleting release $tag"
+            | while read -r tag; do
                 gh release delete "$tag" --yes --cleanup-tag
               done
 
-      # # Cleanup Workflow Runs (Keep Last 10)
       - name: Cleanup Old Workflow Runs
-        if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          KEEP=10
-          echo "Keeping latest $KEEP workflow runs"
-          gh run list \
-            --limit 200 \
-            --status completed \
-            --json databaseId,createdAt \
+          KEEP_RUNS=10
+          gh run list --limit 200 --status completed --json databaseId,createdAt \
             | jq -r '.[] | "\(.createdAt) \(.databaseId)"' \
             | sort -r \
-            | awk "NR>$KEEP {print \$2}" \
-            | while read run_id; do
-                echo "Deleting workflow run $run_id"
-                gh api \
-                  -X DELETE \
-                  repos/${{ github.repository }}/actions/runs/$run_id
+            | awk "NR>$KEEP_RUNS {print \$2}" \
+            | while read -r run_id; do
+                gh api -X DELETE "repos/${{ github.repository }}/actions/runs/$run_id"
               done
